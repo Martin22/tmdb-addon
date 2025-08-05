@@ -48,7 +48,7 @@ async function buildParameters(type, language, page, id, genre, genreList, confi
   // Přidat řazení podle data vydání a omezit na aktuální datum
   parameters.sort_by = 'release_date.desc';
   const today = new Date().toISOString().slice(0, 10);
-  parameters.release_date_lte = today;
+  parameters['release_date.lte'] = today;
 
   if (config.ageRating) {
     switch (config.ageRating) {
