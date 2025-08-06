@@ -148,13 +148,26 @@ async function getManifest(config) {
     .filter(userCatalog => {
       const catalogDef = getCatalogDefinition(userCatalog.id);
       if (isMDBList(userCatalog.id)) return true;
-      if (!catalogDef) return false;
-      if (catalogDef.requiresAuth && !sessionId) return false;
+      if (!catalogDef && userCatalog.id !== "tmdb.detected") return false;
+      if (catalogDef && catalogDef.requiresAuth && !sessionId) return false;
       return true;
     })
     .map(userCatalog => {
       if (isMDBList(userCatalog.id)) {
         return createMDBListCatalog(userCatalog, config.mdblistkey);
+      }
+      // Detected language katalog
+      if (userCatalog.id === "tmdb.detected") {
+        return {
+          id: userCatalog.id,
+          type: userCatalog.type,
+          name: "Detected language",
+          pageSize: 20,
+          extra: [
+            { name: "sort", options: ["year", "popular", "trending"], isRequired: true },
+            { name: "skip" }
+          ]
+        };
       }
       const catalogDef = getCatalogDefinition(userCatalog.id);
       const catalogOptions = getOptionsForCatalog(catalogDef, userCatalog.type, userCatalog.showInHome, options);

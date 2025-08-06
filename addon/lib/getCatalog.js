@@ -19,6 +19,45 @@ async function getCatalog(type, language, page, id, genre, config) {
     return parseResults
   }
 
+  // Detected language katalog
+  if (id === "tmdb.detected") {
+    // Získat detekovaný jazyk (např. z configu nebo z uživatelského nastavení)
+    const detectedLanguage = config.detectedLanguage || language;
+    const sortType = config.sort || "year";
+    const genreList = await getGenreList(detectedLanguage, type);
+    let parameters = { language: detectedLanguage, page };
+    switch (sortType) {
+      case "year":
+        parameters.sort_by = "release_date.desc";
+        parameters[ type === "movie" ? "primary_release_year" : "first_air_date_year" ] = new Date().getFullYear();
+        break;
+      case "popular":
+        parameters.sort_by = "popularity.desc";
+        break;
+      case "trending":
+        parameters.sort_by = "release_date.desc";
+        parameters[ type === "movie" ? "primary_release_year" : "first_air_date_year" ] = new Date().getFullYear();
+        break;
+      default:
+        parameters.sort_by = "release_date.desc";
+    }
+    const fetchFunction = type === "movie" ? moviedb.discoverMovie.bind(moviedb) : moviedb.discoverTv.bind(moviedb);
+    return fetchFunction(parameters)
+      .then(async (res) => {
+        const metaPromises = res.results.map(item => 
+          getMeta(type, detectedLanguage, item.id, config.rpdbkey)
+            .then(result => result.meta)
+            .catch(err => {
+              console.error(`Erro ao buscar metadados pro detected language ${item.id}:`, err.message);
+              return null;
+            })
+        );
+        const metas = (await Promise.all(metaPromises)).filter(Boolean);
+        return { metas };
+      })
+      .catch(console.error);
+  }
+  // ...existing code...
   const genreList = await getGenreList(language, type);
   const parameters = await buildParameters(type, language, page, id, genre, genreList, config);
 
@@ -30,7 +69,7 @@ async function getCatalog(type, language, page, id, genre, config) {
         getMeta(type, language, item.id, config.rpdbkey)
           .then(result => result.meta)
           .catch(err => {
-            console.error(`Erro ao buscar metadados para ${item.id}:`, err.message);
+            console.error(`Erro ao buscar metadados pro standard ${item.id}:`, err.message);
             return null;
           })
       );
@@ -44,11 +83,7 @@ async function getCatalog(type, language, page, id, genre, config) {
 
 async function buildParameters(type, language, page, id, genre, genreList, config) {
   const languages = await getLanguages();
-  const parameters = { language, page };
-  // Přidat řazení podle data vydání a omezit na aktuální datum
-  parameters.sort_by = 'release_date.desc';
-  const today = new Date().toISOString().slice(0, 10);
-  parameters['release_date.lte'] = today;
+  const parameters = { language, page, 'vote_count.gte': 10 };
 
   if (config.ageRating) {
     switch (config.ageRating) {
