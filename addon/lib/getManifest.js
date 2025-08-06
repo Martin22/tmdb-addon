@@ -164,7 +164,6 @@ async function getManifest(config) {
           name: `${tmdbPrefix ? "TMDB - " : ""}Detected language`,
           pageSize: 20,
           extra: [
-            { name: "language", options: filterLanguages, isRequired: true },
             { name: "sort", options: ["year", "popular", "trending"], isRequired: true },
             { name: "skip" }
           ]
