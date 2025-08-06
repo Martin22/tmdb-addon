@@ -161,7 +161,7 @@ async function getManifest(config) {
         return {
           id: userCatalog.id,
           type: userCatalog.type,
-          name: "Detected language",
+          name: `${tmdbPrefix ? "TMDB - " : ""}Detected language`,
           pageSize: 20,
           extra: [
             { name: "sort", options: ["year", "popular", "trending"], isRequired: true },

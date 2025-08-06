@@ -22,23 +22,45 @@ async function getCatalog(type, language, page, id, genre, config) {
   // Detected language katalog
   if (id === "tmdb.detected") {
     // Use config.tmdbLanguage if set, else detectedLanguage, else fallback to language
-    const detectedLanguage = config.tmdbLanguage || config.detectedLanguage || language;
+    const selectedLanguage = config.tmdbLanguage || config.detectedLanguage || language;
     const sortType = config.sort || "year";
-    const genreList = await getGenreList(detectedLanguage, type);
+    const genreList = await getGenreList(selectedLanguage, type);
 
     if (sortType === "trending") {
       // Use TMDB trending endpoint
       const media_type = type === "series" ? "tv" : type;
       const parameters = {
         media_type,
-        time_window: "day", // or "week" if you want weekly trending
-        language: detectedLanguage,
+        time_window: "day",
+        language: selectedLanguage,
         page,
       };
       return moviedb.trending(parameters)
         .then(async (res) => {
           const metaPromises = res.results.map(item => 
-            getMeta(type, detectedLanguage, item.id, config.rpdbkey)
+            getMeta(type, selectedLanguage, item.id, config.rpdbkey)
+              .then(result => result.meta)
+              .catch(err => {
+                console.error(`Erro ao buscar metadados pro detected language ${item.id}:`, err.message);
+                return null;
+              })
+          );
+          const metas = (await Promise.all(metaPromises)).filter(Boolean);
+          return { metas };
+        })
+        .catch(console.error);
+    } else {
+      // Use buildParameters for year/popular
+      // Emulate other catalogs
+      let detectedId = sortType === "year" ? "tmdb.year" : (sortType === "popular" ? "tmdb.top" : "tmdb.year");
+      // For year, pass genre as current year
+      let detectedGenre = sortType === "year" ? new Date().getFullYear().toString() : genre;
+      const parameters = await buildParameters(type, selectedLanguage, page, detectedId, detectedGenre, genreList, config);
+      const fetchFunction = type === "movie" ? moviedb.discoverMovie.bind(moviedb) : moviedb.discoverTv.bind(moviedb);
+      return fetchFunction(parameters)
+        .then(async (res) => {
+          const metaPromises = res.results.map(item => 
+            getMeta(type, selectedLanguage, item.id, config.rpdbkey)
               .then(result => result.meta)
               .catch(err => {
                 console.error(`Erro ao buscar metadados pro detected language ${item.id}:`, err.message);
@@ -50,34 +72,6 @@ async function getCatalog(type, language, page, id, genre, config) {
         })
         .catch(console.error);
     }
-
-    let parameters = { language: detectedLanguage, page };
-    switch (sortType) {
-      case "year":
-        parameters.sort_by = "release_date.desc";
-        parameters[ type === "movie" ? "primary_release_year" : "first_air_date_year" ] = new Date().getFullYear();
-        break;
-      case "popular":
-        parameters.sort_by = "popularity.desc";
-        break;
-      default:
-        parameters.sort_by = "release_date.desc";
-    }
-    const fetchFunction = type === "movie" ? moviedb.discoverMovie.bind(moviedb) : moviedb.discoverTv.bind(moviedb);
-    return fetchFunction(parameters)
-      .then(async (res) => {
-        const metaPromises = res.results.map(item => 
-          getMeta(type, detectedLanguage, item.id, config.rpdbkey)
-            .then(result => result.meta)
-            .catch(err => {
-              console.error(`Erro ao buscar metadados pro detected language ${item.id}:`, err.message);
-              return null;
-            })
-        );
-        const metas = (await Promise.all(metaPromises)).filter(Boolean);
-        return { metas };
-      })
-      .catch(console.error);
   }
   // ...existing code...
   const genreList = await getGenreList(language, type);
