@@ -21,10 +21,36 @@ async function getCatalog(type, language, page, id, genre, config) {
 
   // Detected language katalog
   if (id === "tmdb.detected") {
-    // Získat detekovaný jazyk (např. z configu nebo z uživatelského nastavení)
-    const detectedLanguage = config.detectedLanguage || language;
+    // Use config.tmdbLanguage if set, else detectedLanguage, else fallback to language
+    const detectedLanguage = config.tmdbLanguage || config.detectedLanguage || language;
     const sortType = config.sort || "year";
     const genreList = await getGenreList(detectedLanguage, type);
+
+    if (sortType === "trending") {
+      // Use TMDB trending endpoint
+      const media_type = type === "series" ? "tv" : type;
+      const parameters = {
+        media_type,
+        time_window: "day", // or "week" if you want weekly trending
+        language: detectedLanguage,
+        page,
+      };
+      return moviedb.trending(parameters)
+        .then(async (res) => {
+          const metaPromises = res.results.map(item => 
+            getMeta(type, detectedLanguage, item.id, config.rpdbkey)
+              .then(result => result.meta)
+              .catch(err => {
+                console.error(`Erro ao buscar metadados pro detected language ${item.id}:`, err.message);
+                return null;
+              })
+          );
+          const metas = (await Promise.all(metaPromises)).filter(Boolean);
+          return { metas };
+        })
+        .catch(console.error);
+    }
+
     let parameters = { language: detectedLanguage, page };
     switch (sortType) {
       case "year":
@@ -33,10 +59,6 @@ async function getCatalog(type, language, page, id, genre, config) {
         break;
       case "popular":
         parameters.sort_by = "popularity.desc";
-        break;
-      case "trending":
-        parameters.sort_by = "release_date.desc";
-        parameters[ type === "movie" ? "primary_release_year" : "first_air_date_year" ] = new Date().getFullYear();
         break;
       default:
         parameters.sort_by = "release_date.desc";
