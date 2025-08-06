@@ -26,6 +26,12 @@ async function getCatalog(type, language, page, id, genre, config) {
     const sortType = config.sort || "year";
     const genreList = await getGenreList(selectedLanguage, type);
 
+    // Vždy nastav 'with_original_language' podle zvoleného jazyka při instalaci
+    const languages = await getLanguages();
+    // Najdi ISO kód jazyka podle config.language
+    const langObj = languages.find(l => l.iso_639_1 === selectedLanguage || l.name === selectedLanguage);
+    const originalLang = langObj ? langObj.iso_639_1.split("-")[0] : selectedLanguage.split("-")[0];
+
     if (sortType === "trending") {
       // Use TMDB trending endpoint
       const media_type = type === "series" ? "tv" : type;
@@ -34,6 +40,7 @@ async function getCatalog(type, language, page, id, genre, config) {
         time_window: "day",
         language: selectedLanguage,
         page,
+        with_original_language: originalLang
       };
       return moviedb.trending(parameters)
         .then(async (res) => {
@@ -52,6 +59,7 @@ async function getCatalog(type, language, page, id, genre, config) {
     } else if (sortType === "popular") {
       // Use buildParameters for popular
       const parameters = await buildParameters(type, selectedLanguage, page, "tmdb.top", genre, genreList, config);
+      parameters.with_original_language = originalLang;
       const fetchFunction = type === "movie" ? moviedb.discoverMovie.bind(moviedb) : moviedb.discoverTv.bind(moviedb);
       return fetchFunction(parameters)
         .then(async (res) => {
@@ -71,6 +79,7 @@ async function getCatalog(type, language, page, id, genre, config) {
       // Use buildParameters for year
       const currentYear = new Date().getFullYear().toString();
       const parameters = await buildParameters(type, selectedLanguage, page, "tmdb.year", currentYear, genreList, config);
+      parameters.with_original_language = originalLang;
       const fetchFunction = type === "movie" ? moviedb.discoverMovie.bind(moviedb) : moviedb.discoverTv.bind(moviedb);
       return fetchFunction(parameters)
         .then(async (res) => {
@@ -89,6 +98,7 @@ async function getCatalog(type, language, page, id, genre, config) {
     } else {
       // Fallback: use buildParameters for popular
       const parameters = await buildParameters(type, selectedLanguage, page, "tmdb.top", genre, genreList, config);
+      parameters.with_original_language = originalLang;
       const fetchFunction = type === "movie" ? moviedb.discoverMovie.bind(moviedb) : moviedb.discoverTv.bind(moviedb);
       return fetchFunction(parameters)
         .then(async (res) => {
